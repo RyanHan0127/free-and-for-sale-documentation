@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: postdes.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: postdes.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @file Post Description Page
+ */
+import { Dynamo } from "./Dynamo.js"
+import { S3Bucket } from "./S3Bucket.js"
+import * as cookie from './cookie.js'
+import * as utils from './utils.js'
+
+/**
+ * S3 Object
+ * @type {S3}
+ */
+var docClientS3 = null;
+/**
+ * Dynamo Object
+ * @type {Dynamo}
+ */
+var docClientDynamo = null;
+/**
+ * User ID
+ * @type {String}
+ */
+const userID = cookie.getCookie("UserID");
+/**
+ * Parameters in URL
+ * @type {String}
+ */
+const queryString = window.location.search;
+/**
+ * Parameters parsed in object
+ * @type {Object}
+ */
+const urlParams = new URLSearchParams(queryString);
+/**
+ * Product ID
+ * @type {String}
+ */
+const productID = urlParams.get('productid');
+
+window.onload = function() {
+   if (userID == "") {
+      window.alert("You are not logged in. Redirecting to login page.");
+      window.location.href = "./loginPage.html";
+   }
+   docClientDynamo = new Dynamo(); 
+   docClientS3 = new S3Bucket();
+
+   let logoutButton = document.getElementById("logout");
+   logoutButton.addEventListener("click", utils.logout, false);
+
+   getPost();
+
+   let buyButton = document.getElementById("buy");
+   let wishlistButton = document.getElementById("addToWishlist");
+
+   buyButton.addEventListener("click", pop);
+   wishlistButton.addEventListener("click", addToWishlist);
+} 
+
+/**
+ * posts description 
+ * @returns void
+ */
+async function getPost(){
+   const respDyanmoGetProductEntry = await docClientDynamo.getTableEntry("ProductCatalog", productID);
+
+   const cost = respDyanmoGetProductEntry.Item.Cost;
+   const location = respDyanmoGetProductEntry.Item.Location;
+   const product = respDyanmoGetProductEntry.Item.Product;
+   const image = respDyanmoGetProductEntry.Item.ImageUrl;
+   const seller = respDyanmoGetProductEntry.Item.SellerName;
+   const desc = respDyanmoGetProductEntry.Item.Description;
+   const userID = respDyanmoGetProductEntry.Item.UserID;
+   document.getElementById("cost").innerHTML = "$" + cost;
+   document.getElementById("location").innerHTML = "Location: " + location;
+   document.getElementById("product_name").innerHTML = product;
+
+   let sellerLink = utils.createTag('a', null, null);
+   sellerLink.href = "./sellerProfile.html?sellerID=" + userID;
+   sellerLink.appendChild(document.createTextNode(seller));
+   document.getElementById("name").appendChild(document.createTextNode("Seller's Name: "))
+   document.getElementById("name").appendChild(sellerLink);
+   document.getElementById("image").src = image;
+   document.getElementById("description").innerHTML = desc;
+   const respDyanmoGetUserEntry = await docClientDynamo.getTableEntry('UserInformation', userID);
+
+   const phone = respDyanmoGetUserEntry.Item.PhoneNumber;
+   const email = respDyanmoGetUserEntry.Item.Email;
+   document.getElementById("phone").innerHTML = "Phone Number: " + phone;
+   document.getElementById("email").innerHTML = "Email: " + email;
+   //document.getElementById("profile").href = "/myprofile.html?userid=" + userID;
+}
+
+async function pop() {
+   if(confirm("Do you wish to proceed buying the product?")){
+      window.location.href =  "./myprofile.html";
+   }
+}
+
+/**
+ * Trigger button to add product to wishlist
+ * @returns void
+ */
+async function addToWishlist() {
+   if(confirm("Do you wish add this product to your wishlist?")){
+      const respDyanmoGetUserEntry = await docClientDynamo.getTableEntry('UserInformation', userID);
+      const respDyanmoGetProductWishlist = await docClientDynamo.getTableEntry("Wishlist", productID);
+
+      var newWishlistFromUser = utils.arrayAppend(respDyanmoGetUserEntry.Item['Wishlist'], productID);
+      var newWishlistWatch = utils.arrayAppend(respDyanmoGetProductWishlist.Item['ListOfUsers'], userID);
+
+      const respUpdateUserWishlist = await docClientDynamo.updateTableEntry('UserInformation', userID, 'Wishlist', newWishlistFromUser);
+      const respUpdateWishlistWatch = await docClientDynamo.updateTableEntry('Wishlist', productID, 'ListOfUsers', newWishlistWatch);
+
+      if (respUpdateUserWishlist['$response']['httpResponse']['statusCode'] == 200 &amp;&amp;
+          respUpdateWishlistWatch['$response']['httpResponse']['statusCode'] == 200) {
+         window.alert("Product added to your wishlist!");
+      } else {
+         window.alert("Something went wrong...");
+      }
+   }
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dynamo.html">Dynamo</a></li><li><a href="S3Bucket.html">S3Bucket</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addToWishlist">addToWishlist</a></li><li><a href="global.html#arrayAppend">arrayAppend</a></li><li><a href="global.html#checkIfRepeat">checkIfRepeat</a></li><li><a href="global.html#createTag">createTag</a></li><li><a href="global.html#deleteCookie">deleteCookie</a></li><li><a href="global.html#displayPosts">displayPosts</a></li><li><a href="global.html#docClient">docClient</a></li><li><a href="global.html#docClientDynamo">docClientDynamo</a></li><li><a href="global.html#docClientS3">docClientS3</a></li><li><a href="global.html#doCreatePostTask">doCreatePostTask</a></li><li><a href="global.html#doCreateUserTask">doCreateUserTask</a></li><li><a href="global.html#dynamoScan">dynamoScan</a></li><li><a href="global.html#generateID">generateID</a></li><li><a href="global.html#getCookie">getCookie</a></li><li><a href="global.html#getPost">getPost</a></li><li><a href="global.html#getPresignedAndUpload">getPresignedAndUpload</a></li><li><a href="global.html#getUserInfo">getUserInfo</a></li><li><a href="global.html#initMap">initMap</a></li><li><a href="global.html#logout">logout</a></li><li><a href="global.html#onClickFilter">onClickFilter</a></li><li><a href="global.html#onClickRemove">onClickRemove</a></li><li><a href="global.html#populateUserData">populateUserData</a></li><li><a href="global.html#productID">productID</a></li><li><a href="global.html#queryEachProductAndGenerateList">queryEachProductAndGenerateList</a></li><li><a href="global.html#queryString">queryString</a></li><li><a href="global.html#refresh">refresh</a></li><li><a href="global.html#removePostFromTable">removePostFromTable</a></li><li><a href="global.html#setCookie">setCookie</a></li><li><a href="global.html#updateTable">updateTable</a></li><li><a href="global.html#urlParams">urlParams</a></li><li><a href="global.html#userID">userID</a></li><li><a href="global.html#validate">validate</a></li><li><a href="global.html#validatePostCreation">validatePostCreation</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sun Mar 06 2022 11:10:25 GMT-0800 (Pacific Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

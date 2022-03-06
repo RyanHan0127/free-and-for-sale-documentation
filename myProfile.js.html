@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: myProfile.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: myProfile.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @file profile page logic 
+ */
+import { Dynamo } from "./Dynamo.js"
+import { S3Bucket } from "./S3Bucket.js"
+import * as utilities from './utils.js'
+import * as cookie from './cookie.js'
+import * as Catalog from "./catalog.js"
+
+/**
+ * S3 Object
+ * @type {S3}
+ */
+var docClientS3 = null;
+/**
+ * Dynamo Object
+ * @type {Dynamo}
+ */
+var docClientDynamo = null;
+
+/**
+ * User ID
+ * @type {String}
+ */
+var userID = cookie.getCookie("UserID");
+
+window.onload = function(){
+    if (userID == "") {
+		window.alert("You are not logged in. Redirecting to login page.");
+		window.location.href = "./loginPage.html";
+	}
+    docClientDynamo = new Dynamo(); 
+    docClientS3 = new S3Bucket(); 
+    const response = getUserInfo(userID);
+    response.then(result => populateUserData(result));
+} 
+
+/**
+ * Append val to lst and return the new list with removed empty and null values
+ * @param {Object[]} lst 
+ * @param {Object} val 
+ * @returns Object[]
+ */
+function arrayAppend(lst, val) {
+    lst.push(val);
+    return lst.filter(item => item);
+}
+
+/**
+ * Removes product information from a user's profile in the database 
+ * @param {String} productID Product ID
+ * @param {Boolean} bought signifies if the item has been purhcased
+ * @returns void
+ */
+async function removePostFromTable(productID, bought){
+    console.log("delete post requested")
+    const respDyanmoGetUserEntry = await docClientDynamo.getTableEntry('UserInformation', userID);
+    const userSellingProductIDList = respDyanmoGetUserEntry.Item['ListofProductIDSelling']
+
+    let newUserSellingProductIDList = []
+    for(let i = 0; i &lt; userSellingProductIDList.length; i++){
+        if(userSellingProductIDList[i] != productID)
+        arrayAppend(newUserSellingProductIDList, userSellingProductIDList[i])
+    }
+
+    const respDynamoRemoveProductToUserSelling = await docClientDynamo.updateTableEntry('UserInformation', userID, 'ListofProductIDSelling', newUserSellingProductIDList);
+    const respDynamoDeleteProductFromCatalog = await docClientDynamo.deleteProductTableEntry(productID);
+
+    //removeFromWishlists(productID)
+    if(bought){
+    const userSoldProductIDList = arrayAppend(respDyanmoGetUserEntry.Item['ListofProductIDSold'], productID);
+    const respDynamoAddProductToUserSoldList = await docClientDynamo.updateTableEntry('UserInformation', userID, 'ListofProductIDSold', userSoldProductIDList);
+        
+        if (respDynamoRemoveProductToUserSelling['$response']['httpResponse']['statusCode'] == 200 &amp;&amp;
+            respDynamoAddProductToUserSoldList['$response']['httpResponse']['statusCode'] == 200 &amp;&amp;
+            respDynamoDeleteProductFromCatalog['$response']['httpResponse']['statusCode'] == 200) {
+            window.alert("Successfully purchased!");
+            window.location.href = "./myProfile.html"
+        } else {
+            window.alert("Something went wrong...\n");
+        }
+    } else {
+        if (respDynamoRemoveProductToUserSelling['$response']['httpResponse']['statusCode'] == 200 &amp;&amp;
+            respDynamoDeleteProductFromCatalog['$response']['httpResponse']['statusCode'] == 200) {
+            window.alert("Post successfully removed");
+            window.location.href = "./myProfile.html"
+        } else {
+            window.alert("Something went wrong...\n");
+        }
+    }
+
+    
+     
+}
+
+// /**
+//  * Removes product from every user wishlist that has it 
+//  * @param {String} productID Product ID
+//  * @returns void
+//  */
+// async function removeFromWishlists(productID){
+//     const respWishListLookUp = await docClientDynamo.getTableEntry('Wishlist', productID)
+//     const usersWithProductInWishlist = respWishListLookUp.Item['ListOfUsers']
+//     for(let i = 0; i &lt; usersWithProductInWishlist.length; i++){
+//         if(!removeFromSingleWishlist(usersWithProductInWishlist[i], productID)){
+//             window.alert("error removing from a wishlist")
+//         }
+//     }
+//     if (respWishListLookUp['$response']['httpResponse']['statusCode'] != 200){
+//         window.alert("error finding item in wishlist table")
+//     }
+// }
+
+// /**
+//  * Removes product from a specific user ID's wishlist 
+//  * @param {String} userID user id 
+//  * @param {String} productID Product ID
+//  * @returns Boolean
+//  */
+// async function removeFromSingleWishlist(userID, productID){
+//     const respDyanmoGetUserEntry = await docClientDynamo.getTableEntry('UserInformation', userID);
+//     const wishlistItems = respDyanmoGetUserEntry.Item['Wishlist']
+//     let updatedWishlist = []
+//     for(let i = 0; i &lt; wishlistItems.length; i++){
+//         if(wishlistItems[i] != productID)
+//         arrayAppend(updatedWishlist, wishlistItems[i])
+//     }
+//     const respDynamoUpdatedWishlist = await docClientDynamo.updateTableEntry('UserInformation', userID, 'Wishlist', updatedWishlist);
+//     if (respDynamoUpdatedWishlist['$response']['httpResponse']['statusCode'] == 200){
+//         return true;
+//     }
+//     return false;
+// }
+
+/**
+ * Gets user information from a user's profile in the database 
+ * @param {String} userID Seller's User ID
+ * @returns Promise
+ */
+async function getUserInfo(userID){
+    const entry = await docClientDynamo.getTableEntry("UserInformation", userID);
+    return entry;
+}
+
+/**
+ * Create tags to display user information in profile
+ * @param {Promise} result
+ * @returns void
+ */
+async function populateUserData(result) {
+    result.Item.Address
+    let userInfoSquare = document.getElementById("userInfoSquare");
+    
+    let p  = utilities.createTag('p', null, null);
+    let p2 = utilities.createTag('p', null, null);
+    let p3 = utilities.createTag('p', null, null);
+    let p4 = utilities.createTag('p', null, null);
+    
+    let user_fullname = document.createTextNode(result.Item.FirstName + " " + result.Item.LastName);
+    let user_email = document.createTextNode(result.Item.Email);
+    let user_phone = document.createTextNode(result.Item.PhoneNumber);
+    
+    p.appendChild(user_fullname);
+    userInfoSquare.appendChild(p);
+    p3.appendChild(user_email);
+    userInfoSquare.appendChild(p3);
+    p4.appendChild(user_phone);
+    userInfoSquare.appendChild(p4);
+
+    let postsSquare = document.getElementById("postsSquare");
+    await displayPosts(postsSquare, result.Item.ListofProductIDSelling);
+}
+
+/**
+ * Display posts of current user of items available for sale, uses helper function from catalog
+ * @param {Object} divPostsSquare Div tag to update table
+ * @param {Object[]} listOfProducts List of all queried products from Dynamo DB
+ * @returns void
+ */
+ async function displayPosts(divPostsSquare, listOfProductIDs) {
+
+    let product_list = [];
+	
+    for (let i = 0; i &lt; listOfProductIDs.length; i++){
+        let product =  await docClientDynamo.getTableEntry('ProductCatalog', listOfProductIDs[i]);
+        product_list.push(product.Item);
+        
+	}
+    //console.log(product_list)
+    Catalog.updateTable(divPostsSquare, product_list, true);
+
+    for(let i = 0; i &lt; listOfProductIDs.length; i++){
+        const classElems = document.getElementsByClassName(listOfProductIDs[i]);
+        for(let j = 0; j &lt; classElems.length; j++){
+            classElems[j].addEventListener('click', function () {
+                removePostFromTable(listOfProductIDs[i], false);
+            })
+        }
+    }
+
+ }
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dynamo.html">Dynamo</a></li><li><a href="S3Bucket.html">S3Bucket</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addToWishlist">addToWishlist</a></li><li><a href="global.html#arrayAppend">arrayAppend</a></li><li><a href="global.html#checkIfRepeat">checkIfRepeat</a></li><li><a href="global.html#createTag">createTag</a></li><li><a href="global.html#deleteCookie">deleteCookie</a></li><li><a href="global.html#displayPosts">displayPosts</a></li><li><a href="global.html#docClient">docClient</a></li><li><a href="global.html#docClientDynamo">docClientDynamo</a></li><li><a href="global.html#docClientS3">docClientS3</a></li><li><a href="global.html#doCreatePostTask">doCreatePostTask</a></li><li><a href="global.html#doCreateUserTask">doCreateUserTask</a></li><li><a href="global.html#dynamoScan">dynamoScan</a></li><li><a href="global.html#generateID">generateID</a></li><li><a href="global.html#getCookie">getCookie</a></li><li><a href="global.html#getPost">getPost</a></li><li><a href="global.html#getPresignedAndUpload">getPresignedAndUpload</a></li><li><a href="global.html#getUserInfo">getUserInfo</a></li><li><a href="global.html#initMap">initMap</a></li><li><a href="global.html#logout">logout</a></li><li><a href="global.html#onClickFilter">onClickFilter</a></li><li><a href="global.html#onClickRemove">onClickRemove</a></li><li><a href="global.html#populateUserData">populateUserData</a></li><li><a href="global.html#productID">productID</a></li><li><a href="global.html#queryEachProductAndGenerateList">queryEachProductAndGenerateList</a></li><li><a href="global.html#queryString">queryString</a></li><li><a href="global.html#refresh">refresh</a></li><li><a href="global.html#removePostFromTable">removePostFromTable</a></li><li><a href="global.html#setCookie">setCookie</a></li><li><a href="global.html#updateTable">updateTable</a></li><li><a href="global.html#urlParams">urlParams</a></li><li><a href="global.html#userID">userID</a></li><li><a href="global.html#validate">validate</a></li><li><a href="global.html#validatePostCreation">validatePostCreation</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sun Mar 06 2022 11:10:25 GMT-0800 (Pacific Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

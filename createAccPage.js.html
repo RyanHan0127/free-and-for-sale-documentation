@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: createAccPage.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: createAccPage.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @file Create account logic file
+ */
+import { Dynamo } from "./Dynamo.js"
+var crypto = require("crypto");
+
+/**
+ * Dynamo Object
+ * @type {Dynamo}
+ */
+var docClientDynamo = null;
+
+/**
+ * Generate an ID given length
+ * @param {Number} length Length of ID
+ * @returns String
+ */
+function generateID(length) {
+    return crypto.randomBytes(length).toString('hex');
+}
+
+window.onload = function () {
+    let submitButton = document.getElementById("submit");
+    submitButton.addEventListener("click", validate, false);
+
+    docClientDynamo = new Dynamo();
+}
+
+/**
+ * Validate all input fields when create account button is clicked
+ * @returns void
+ */
+function validate()
+{
+    var firstName=document.getElementById("firstName").value;
+    var lastName=document.getElementById("lastName").value;
+    var email=document.getElementById("email").value;
+    var phoneNumber=document.getElementById("phoneNumber").value;
+    var streetAddr=document.getElementById("streetAddress").value;
+    var password=document.getElementById("password").value;
+    var passwordCheck=document.getElementById("passwordRe").value;
+
+    var emailDomain = new RegExp("^([A-Za-z0-9])+@g.ucla.edu$");
+    var phoneNumFormat = new RegExp("^([0-9]{3})-([0-9]{3})-([0-9]{4})$");
+
+    if (!emailDomain.test(email)){
+        alert("invalid email, please enter g.ucla.edu email");
+        return false;
+    }
+
+    if (!phoneNumFormat.test(phoneNumber)){
+        alert("invalid phone number, please enter in xxx-xxx-xxxx format");
+        return false;
+    }
+
+    if (password != passwordCheck){
+        alert("passwords do not match!");
+        return false;
+    }
+
+    if (password.length &lt; 6){
+        alert("password must be 6 or more characters");
+        return false;
+    } 
+
+    doCreateUserTask(firstName, lastName, email, phoneNumber, streetAddr, password);
+}
+
+/**
+* Adds all infomation to the database when creating an account
+* @param {String} firstName First name of user
+* @param {String} lastName Last name of user
+* @param {String} email User's ucla email address
+* @param {String} phone User's phone number
+* @param {String} street User's street address
+* @param {String} password User's password
+* @returns void
+*/
+async function doCreateUserTask(firstName, lastName, email, phone, street, password) {
+    if (await checkIfRepeat(email)){
+        window.alert("Account with email already exists! Please log in");
+    } else{
+        var userID = generateID(5);
+        const respDynamoAddUser = await docClientDynamo.putUserEntry(firstName, lastName, email, phone, street, password, userID);
+        const respDynamoAddUserCred = await docClientDynamo.putUserCredEntry(email, password, userID);
+
+        if (respDynamoAddUser['$response']['httpResponse']['statusCode'] == 200 &amp;&amp; respDynamoAddUserCred['$response']['httpResponse']['statusCode'] == 200) {
+            window.alert("Account created! Redirecting to login page and please login.");
+            window.location.href = "./loginPage.html";
+        } else {
+            window.alert("Error in creating user! Please try again.");
+        }
+    }
+}
+
+/**
+* Checks the user database when creating an account, to make sure email is not already in use
+* @param {String} email User's ucla email address
+* @returns boolean
+*/
+async function checkIfRepeat(email){
+    const resp = await docClientDynamo.getTableEntry("UserCred", email);
+    console.log(resp.Item);
+    if (resp.Item != null){
+        return true;    //email already exists in database
+    } else {
+        return false;
+    }
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dynamo.html">Dynamo</a></li><li><a href="S3Bucket.html">S3Bucket</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addToWishlist">addToWishlist</a></li><li><a href="global.html#arrayAppend">arrayAppend</a></li><li><a href="global.html#checkIfRepeat">checkIfRepeat</a></li><li><a href="global.html#createTag">createTag</a></li><li><a href="global.html#deleteCookie">deleteCookie</a></li><li><a href="global.html#displayPosts">displayPosts</a></li><li><a href="global.html#docClient">docClient</a></li><li><a href="global.html#docClientDynamo">docClientDynamo</a></li><li><a href="global.html#docClientS3">docClientS3</a></li><li><a href="global.html#doCreatePostTask">doCreatePostTask</a></li><li><a href="global.html#doCreateUserTask">doCreateUserTask</a></li><li><a href="global.html#dynamoScan">dynamoScan</a></li><li><a href="global.html#generateID">generateID</a></li><li><a href="global.html#getCookie">getCookie</a></li><li><a href="global.html#getPost">getPost</a></li><li><a href="global.html#getPresignedAndUpload">getPresignedAndUpload</a></li><li><a href="global.html#getUserInfo">getUserInfo</a></li><li><a href="global.html#initMap">initMap</a></li><li><a href="global.html#logout">logout</a></li><li><a href="global.html#onClickFilter">onClickFilter</a></li><li><a href="global.html#onClickRemove">onClickRemove</a></li><li><a href="global.html#populateUserData">populateUserData</a></li><li><a href="global.html#productID">productID</a></li><li><a href="global.html#queryEachProductAndGenerateList">queryEachProductAndGenerateList</a></li><li><a href="global.html#queryString">queryString</a></li><li><a href="global.html#refresh">refresh</a></li><li><a href="global.html#removePostFromTable">removePostFromTable</a></li><li><a href="global.html#setCookie">setCookie</a></li><li><a href="global.html#updateTable">updateTable</a></li><li><a href="global.html#urlParams">urlParams</a></li><li><a href="global.html#userID">userID</a></li><li><a href="global.html#validate">validate</a></li><li><a href="global.html#validatePostCreation">validatePostCreation</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sun Mar 06 2022 11:10:25 GMT-0800 (Pacific Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
